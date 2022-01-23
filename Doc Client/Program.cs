@@ -32,11 +32,20 @@ var getUploadStatus = async (String identifier) =>
     HttpResponseMessage response = await client.GetAsync(server + "/upload/" + identifier);
     response.EnsureSuccessStatusCode();
     string responseBody = await response.Content.ReadAsStringAsync();
-    var status = JsonDocument.Parse(responseBody);
-    
+    JsonElement statusJsonRoot = JsonDocument.Parse(responseBody).RootElement;
+
+    //TODO parse to struct directly. Doesn't work at the moment    
     UploadStatus uploadStatus = new();
-    uploadStatus.Status = (UploadStatus.StatusType)status.RootElement.GetProperty("status").GetInt32();
-    uploadStatus.StatusString = status.RootElement.GetProperty("statusString").GetString();
+    uploadStatus.Status = (UploadStatus.StatusType)statusJsonRoot.GetProperty("status").GetInt32();
+    uploadStatus.StatusString = statusJsonRoot.GetProperty("statusString").GetString();
+    
+    JsonElement resultJson = statusJsonRoot.GetProperty("result");
+    UploadResult uploadResult = new();
+    uploadResult.Result = (UploadResult.ResultType)resultJson.GetProperty("result").GetInt32();
+    uploadResult.Message = resultJson.GetProperty("message").GetString();
+    
+    uploadStatus.Result = uploadResult;
+    
     return uploadStatus;
 };
 
@@ -55,11 +64,13 @@ try
         foreach (String uploadId in uploadIds)
         {
             UploadStatus uploadStatus = await getUploadStatus(uploadId);
-            if(uploadStatus.Status != UploadStatus.StatusType.Pending)
+            if(uploadStatus.Status == UploadStatus.StatusType.Completed)
             {
                 Console.WriteLine("Upload finished for " + uploadId);
-                Console.WriteLine("Status: " + uploadStatus.Status);
-                Console.WriteLine("Message: " + uploadStatus.StatusString);
+                Console.WriteLine("Status: " + uploadStatus.StatusString);
+                Console.WriteLine("Result: " + uploadStatus.Result.Result);
+                Console.WriteLine("Message: " + uploadStatus.Result.Message);
+
                 uploadStatuses.Add(uploadId, uploadStatus);
             }
         }
